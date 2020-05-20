@@ -1,0 +1,85 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  # Initializes database with Sentry data and creates initial user
+  name: database-populator
+spec:
+  containers:
+    - name: database-populator
+      image: sentry:9.1.2
+      resources:
+        limits:
+          # for some reason this populator is consuming lots of memory
+          cpu: 500m
+          memory: 1500Mi
+        requests:
+          cpu: 50m
+          memory: 800Mi
+      env:
+        - name: SENTRY_SECRET_KEY
+            value: '158)bg&cc__)#i=3@-pl&dej#51%l#2^w3kek^34-ixc8@m-c!'
+          - name: C_FORCE_ROOT
+            value: 'TRUE'
+          - name: SENTRY_POSTGRES_HOST
+            valueFrom:
+              secretKeyRef:
+                key: database-host
+                name: postgres-secrets
+          - name: SENTRY_DB_NAME
+            valueFrom:
+              secretKeyRef:
+                key: database-name
+                name: postgres-secrets
+          - name: SENTRY_DB_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: postgres-secrets
+          - name: SENTRY_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: postgres-secrets
+          - name: SENTRY_REDIS_DB
+            valueFrom:
+              secretKeyRef:
+                key: database-db
+                name: redis-secrets
+          - name: SENTRY_REDIS_PORT
+            valueFrom:
+              secretKeyRef:
+                key: database-port
+                name: redis-secrets
+          - name: SENTRY_REDIS_HOST
+            valueFrom:
+              secretKeyRef:
+                key: database-host
+                name: redis-secrets
+          - name: SENTRY_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: redis-secrets
+          - name: SENTRY_INITIAL_EMAIL
+            value: 'YOUR_EMAIL@BLABLA.com'
+          - name: SENTRY_INITIAL_PASSWORD
+            value: 'foobar'
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/sentry/
+      command:
+          - "/bin/bash"
+          - "-ecx"
+          - |
+            # Init migrations
+            sentry upgrade --noinput
+            # Create user to sentry
+            sentry createuser --email ${SENTRY_INITIAL_EMAIL} --password ${SENTRY_INITIAL_PASSWORD} --superuser --no-input
+      imagePullPolicy: Always
+  volumes:
+  - name: config-volume
+    configMap:
+      name: sentry
+  restartPolicy: OnFailure
+  terminationGracePeriodSeconds: 30
+  dnsPolicy: ClusterFirst
